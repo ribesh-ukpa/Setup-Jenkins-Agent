@@ -81,7 +81,7 @@ sudo ss -tulpn | grep 2222
 
 ---
 
-## (Optional-If already setup once don't touch) Step 2: Generate SSH Key Pair on the Controller
+## (Optional-If already setup once don't touch : GO TO Step 3) Step 2: Generate SSH Key Pair on the Controller
 
 Run the following **on the Jenkins controller** as the jenkins user:
 
@@ -110,7 +110,7 @@ This creates:
 
 ## Step 3: Copy Public Key to the Agent VM
 
-Get the public key content from the controller:
+Get the public key content from the **controller**:
 
 ```bash
 sudo cat /var/lib/jenkins/.ssh/agent_key.pub
@@ -135,10 +135,16 @@ chown -R jenkins:jenkins /home/jenkins/.ssh
 
 ## Step 4: Verify SSH Works Without a Password
 
-From the **controller**, test the connection to your custom port:
+From the **controller**, Add the connection to your custom port of the AGENT:
+```bash
+ssh-keyscan -p 2222 <AGENT_VM_IP> | sudo tee -a /var/lib/jenkins/.ssh/known_hosts > /dev/null
+chmod 600 /var/lib/jenkins/.ssh/known_hosts
+```
 
 ```bash
 sudo -u jenkins ssh -i /var/lib/jenkins/.ssh/agent_key jenkins@<AGENT_VM_IP> -p 2222
+
+# It will ask for PASSPHASE if it works
 ```
 
 **Expected result:** You should land directly in the agent shell with **no password prompt**. If this works, Jenkins will connect successfully too.
@@ -151,8 +157,7 @@ If it fails, check:
 If it doesn't work try this:
 ```bash
 # Run this as a normal user not jenkins
-ssh-keyscan -p 2222 <AGENT_VM_IP> | sudo tee -a /var/lib/jenkins/.ssh/known_hosts > /dev/null
-chmod 600 /var/lib/jenkins/.ssh/known_hosts
+
 ```
 
 ---
