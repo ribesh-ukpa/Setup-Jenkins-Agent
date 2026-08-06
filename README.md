@@ -81,7 +81,7 @@ sudo ss -tulpn | grep 2222
 
 ---
 
-## Step 2: Generate SSH Key Pair on the Controller
+## (Optional-If already setup once don't touch) Step 2: Generate SSH Key Pair on the Controller
 
 Run the following **on the Jenkins controller** as the jenkins user:
 
@@ -148,6 +148,13 @@ If it fails, check:
 - Public key is in `~/.ssh/authorized_keys` on the agent
 - File permissions are correct (see Quick Reference below)
 
+If it doesn't work try this:
+```bash
+# Run this as a normal user not jenkins
+ssh-keyscan -p 2222 <AGENT_VM_IP> | sudo tee -a /var/lib/jenkins/.ssh/known_hosts > /dev/null
+chmod 600 /var/lib/jenkins/.ssh/known_hosts
+```
+
 ---
 
 ## Step 5: Add Private Key to Jenkins Credentials
@@ -208,17 +215,19 @@ Click **Advanced** to access the Host Key Verification Strategy option.
 | **Manually Trusted Key Verification** | First-time setup (recommends trusting the host)      |
 | **Known hosts file**                  | Production (more secure, requires setup below)       |
 
-#### For Production: Use Known Hosts File Strategy
+#### (SKIP ALREADY DONE ABOVE) For Production: Use Known Hosts File Strategy
 
 To use the **Known hosts file** strategy, first populate it on the controller with the agent's host key **including the port**:
 
 ```bash
 sudo -u jenkins bash
 mkdir -p /var/lib/jenkins/.ssh
+```
 
+```bash
 # Add host key for custom port (without -H flag to avoid hashing issues)
+# Run this as a normal user not jenkins
 ssh-keyscan -p 2222 <AGENT_VM_IP> | sudo tee -a /var/lib/jenkins/.ssh/known_hosts > /dev/null
-
 chmod 600 /var/lib/jenkins/.ssh/known_hosts
 ```
 
