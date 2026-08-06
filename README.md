@@ -137,6 +137,7 @@ chown -R jenkins:jenkins /home/jenkins/.ssh
 
 From the **controller**, Add the connection to your custom port of the AGENT:
 ```bash
+# Run as normal user not jenkins
 ssh-keyscan -p 2222 <AGENT_VM_IP> | sudo tee -a /var/lib/jenkins/.ssh/known_hosts > /dev/null
 chmod 600 /var/lib/jenkins/.ssh/known_hosts
 ```
@@ -154,11 +155,6 @@ If it fails, check:
 - Public key is in `~/.ssh/authorized_keys` on the agent
 - File permissions are correct (see Quick Reference below)
 
-If it doesn't work try this:
-```bash
-# Run this as a normal user not jenkins
-
-```
 
 ---
 
@@ -220,27 +216,6 @@ Click **Advanced** to access the Host Key Verification Strategy option.
 | **Manually Trusted Key Verification** | First-time setup (recommends trusting the host)      |
 | **Known hosts file**                  | Production (more secure, requires setup below)       |
 
-#### (SKIP ALREADY DONE ABOVE) For Production: Use Known Hosts File Strategy
-
-To use the **Known hosts file** strategy, first populate it on the controller with the agent's host key **including the port**:
-
-```bash
-sudo -u jenkins bash
-mkdir -p /var/lib/jenkins/.ssh
-```
-
-```bash
-# Add host key for custom port (without -H flag to avoid hashing issues)
-# Run this as a normal user not jenkins
-ssh-keyscan -p 2222 <AGENT_VM_IP> | sudo tee -a /var/lib/jenkins/.ssh/known_hosts > /dev/null
-chmod 600 /var/lib/jenkins/.ssh/known_hosts
-```
-
-Verify the entry was added:
-
-```bash
-sudo -u jenkins tail -5 /var/lib/jenkins/.ssh/known_hosts
-```
 
 You should see entries like:
 
