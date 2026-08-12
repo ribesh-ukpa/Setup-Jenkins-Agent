@@ -204,7 +204,7 @@ If it fails, check:
 
 ---
 
-## Step 5: Add Private Key to Jenkins Credentials
+## (Optional — If already setup once don't touch: GO TO Step 7) Step 5: Add Private Key to Jenkins Credentials
 
 1. Go to **Manage Jenkins → Credentials → System → Global → Add Credentials**
 2. Fill in the following:
@@ -227,7 +227,7 @@ Copy the entire output including `-----BEGIN OPENSSH PRIVATE KEY-----` and `----
 
 ---
 
-## Step 6: Install the SSH Build Agents Plugin
+## (Optional — If already setup once don't touch: GO TO Step 7) Step 6: Install the SSH Build Agents Plugin
 
 1. Go to **Manage Jenkins → Plugins → Available plugins**
 2. Search for **SSH Build Agents**
