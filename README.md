@@ -64,24 +64,72 @@ Ensure this line is present:
 Port 2222
 ```
 
-Then restart SSH:
+### Disable ssh.socket and Restart via ssh.service (Critical — Ubuntu Specific)
+
+> ⚠️ **Ubuntu-specific:** Modern Ubuntu uses **systemd socket activation** for SSH by default.
+> `ssh.socket` controls the listening port **independently of `sshd_config`**, which is why
+> editing the config and restarting `ssh.service` alone has no effect — the socket overrides it
+> and keeps SSH bound to port 22.
+
+#### Step 1 — Check if ssh.socket is active
 
 ```bash
-sudo systemctl restart sshd
-sudo systemctl status sshd
+sudo systemctl status ssh.socket
 ```
 
-Verify it's listening:
+If it shows `active (running)` and `Listen: 0.0.0.0:22`, the socket is the cause.
+
+#### Step 2 — Disable and stop ssh.socket
 
 ```bash
-sudo netstat -tulpn | grep 2222
-# or
-sudo ss -tulpn | grep 2222
+sudo systemctl disable --now ssh.socket
 ```
+
+#### Step 3 — Mask ssh.socket (Recommended)
+
+Masking prevents the socket from being re-enabled automatically by package upgrades or
+`systemctl preset` runs (e.g. after an OpenSSH update):
+
+```bash
+sudo systemctl mask ssh.socket
+```
+
+#### Step 4 — Restart ssh.service
+
+```bash
+sudo systemctl restart ssh
+```
+
+#### Step 5 — Verify the correct state
+
+```bash
+# Check service and socket state
+systemctl is-enabled ssh.service ssh.socket   # Should return: enabled / masked
+systemctl is-active  ssh.service ssh.socket   # Should return: active / inactive
+
+# Confirm SSH is listening on 2222
+sudo ss -tlnp | grep 2222
+```
+
+Expected output:
+
+```
+LISTEN  0  128  0.0.0.0:2222  0.0.0.0:*  users:(("sshd", ...))
+LISTEN  0  128     [::]:2222     [::]:*  users:(("sshd", ...))
+```
+
+> **Note:** If `ss -tlnp | grep 2222` returns nothing, do **not** edit `ssh_config` —
+> that is the client config file and has no effect on the listening port.
+> Always edit `/etc/ssh/sshd_config` (the server config).
+
+| File | Purpose |
+|---|---|
+| `/etc/ssh/sshd_config` | ✅ Server — controls what port SSH listens on |
+| `/etc/ssh/ssh_config` | ❌ Client — controls outgoing SSH connections only |
 
 ---
 
-## (Optional-If already setup once don't touch : GO TO Step 3) Step 2: Generate SSH Key Pair on the Controller
+## (Optional — If already setup once don't touch: GO TO Step 3) Step 2: Generate SSH Key Pair on the Controller
 
 Run the following **on the Jenkins controller** as the jenkins user:
 
@@ -135,17 +183,16 @@ chown -R jenkins:jenkins /home/jenkins/.ssh
 
 ## Step 4: Verify SSH Works Without a Password
 
-From the **controller**, Add the connection to your custom port of the AGENT:
+From the **controller**, add the connection to your custom port of the agent:
+
 ```bash
 # Run as normal user not jenkins
 ssh-keyscan -p 2222 <AGENT_VM_IP> | sudo tee -a /var/lib/jenkins/.ssh/known_hosts > /dev/null
-chmod 600 /var/lib/jenkins/.ssh/known_hosts
+sudo chmod 600 /var/lib/jenkins/.ssh/known_hosts
 ```
 
 ```bash
 sudo -u jenkins ssh -i /var/lib/jenkins/.ssh/agent_key jenkins@<AGENT_VM_IP> -p 2222
-
-# It will ask for PASSPHASE if it works
 ```
 
 **Expected result:** You should land directly in the agent shell with **no password prompt**. If this works, Jenkins will connect successfully too.
@@ -155,7 +202,6 @@ If it fails, check:
 - Public key is in `~/.ssh/authorized_keys` on the agent
 - File permissions are correct (see Quick Reference below)
 
-
 ---
 
 ## Step 5: Add Private Key to Jenkins Credentials
@@ -163,13 +209,13 @@ If it fails, check:
 1. Go to **Manage Jenkins → Credentials → System → Global → Add Credentials**
 2. Fill in the following:
 
-| Field       | Value                                                                |
-| ----------- | -------------------------------------------------------------------- |
-| Kind        | SSH Username with private key                                        |
-| ID          | `jenkins-agent-ssh-key`                                              |
-| Username    | `jenkins`                                                            |
+| Field | Value |
+|---|---|
+| Kind | SSH Username with private key |
+| ID | `jenkins-agent-ssh-key` |
+| Username | `jenkins` |
 | Private Key | Enter directly → paste contents of `/var/lib/jenkins/.ssh/agent_key` |
-| Passphrase  | Leave empty (key should have no passphrase)                          |
+| Passphrase | Leave empty (key should have no passphrase) |
 
 Get the private key with:
 
@@ -195,27 +241,26 @@ Copy the entire output including `-----BEGIN OPENSSH PRIVATE KEY-----` and `----
 2. Enter a node name (e.g., `agent-1`) and select **Permanent Agent**
 3. Configure the node:
 
-| Field                 | Value                          |
-| --------------------- | ------------------------------ |
-| # of executors        | 2 (or match CPU cores)         |
-| Remote root directory | `/home/jenkins/agents`         |
-| Labels                | e.g., `linux ubuntu`           |
-| Launch method         | Launch agents via SSH          |
-| Host                  | `<AGENT_VM_IP>`                |
-| Port                  | `2222` (your custom SSH port)  |
-| Credentials           | Select the key added in Step 5 |
-| Host Key Verification | See options below              |
+| Field | Value |
+|---|---|
+| # of executors | 2 (or match CPU cores) |
+| Remote root directory | `/home/jenkins/agents` |
+| Labels | e.g., `linux ubuntu` |
+| Launch method | Launch agents via SSH |
+| Host | `<AGENT_VM_IP>` |
+| Port | `2222` (your custom SSH port) |
+| Credentials | Select the key added in Step 5 |
+| Host Key Verification | See options below |
 
 ### Host Key Verification Strategy
 
 Click **Advanced** to access the Host Key Verification Strategy option.
 
-| Strategy                              | When to Use                                           |
-| ------------------------------------- | ----------------------------------------------------- |
-| **Non verifying**                     | Quick setup / initial testing                         |
-| **Manually Trusted Key Verification** | First-time setup (recommends trusting the host)      |
-| **Known hosts file**                  | Production (more secure, requires setup below)       |
-
+| Strategy | When to Use |
+|---|---|
+| **Non verifying** | Quick setup / initial testing |
+| **Manually Trusted Key Verification** | First-time setup (recommends trusting the host) |
+| **Known hosts file** | Production (more secure, requires setup below) |
 
 You should see entries like:
 
@@ -251,10 +296,10 @@ PubkeyAuthentication yes
 ChallengeResponseAuthentication no
 ```
 
-Then restart SSH:
+Then restart SSH via the service (socket should already be disabled and masked from Step 1):
 
 ```bash
-sudo systemctl restart sshd
+sudo systemctl restart ssh
 ```
 
 > ⚠️ **Important:** Confirm that key-based SSH login works (Step 4) **before** disabling password auth, or you may lock yourself out.
@@ -309,14 +354,16 @@ pipeline {
 ## Troubleshooting
 
 | Issue | Cause | Fix |
-| --- | --- | --- |
-| `Connection refused` | SSH not running on specified port | Verify SSH is listening on port 2222: `sudo ss -tulpn \| grep 2222` |
+|---|---|---|
+| `Connection refused` | SSH not running on specified port | Verify SSH is listening: `sudo ss -tlnp \| grep 2222` |
+| SSH still on port 22 after restart | `ssh.socket` is active and overriding `sshd_config` | Run `systemctl disable --now ssh.socket && systemctl mask ssh.socket && systemctl restart ssh` |
+| Port change ignored entirely | Edited `ssh_config` (client) not `sshd_config` (server) | Edit `/etc/ssh/sshd_config`, then disable/mask `ssh.socket` and restart `ssh.service` |
 | `Permission denied (publickey)` | Key has passphrase or public key not in authorized_keys | Remove passphrase: `ssh-keygen -p -N "" -f /var/lib/jenkins/.ssh/agent_key` |
 | `Enter passphrase for key` | Private key has a passphrase (won't work with Jenkins) | Remove passphrase using command above |
 | `No entry currently exists in the Known Hosts file` | Host key not added for custom port | Run: `ssh-keyscan -p 2222 <IP> \| sudo tee -a /var/lib/jenkins/.ssh/known_hosts > /dev/null` |
 | `UnsupportedClassVersionError` | Java version mismatch | Install same Java version on both controller and agent |
-| Agent keeps disconnecting | Firewall blocking port 2222 | `sudo ufw allow 2222` and verify from controller: `nc -zv <AGENT_IP> 2222` |
-| `Host key not found in known_hosts` | File doesn't exist or has wrong permissions | `sudo -u jenkins mkdir -p /var/lib/jenkins/.ssh && sudo -u jenkins ssh-keyscan -p 2222 <IP> >> /var/lib/jenkins/.ssh/known_hosts` |
+| Agent keeps disconnecting | Firewall blocking port 2222 | `sudo ufw allow 2222` and verify: `nc -zv <AGENT_IP> 2222` |
+| `Host key not found in known_hosts` | File doesn't exist or has wrong permissions | `sudo -u jenkins ssh-keyscan -p 2222 <IP> >> /var/lib/jenkins/.ssh/known_hosts` |
 
 ---
 
@@ -347,12 +394,14 @@ chown -R jenkins:jenkins /var/lib/jenkins/.ssh
 - Use `ssh-keyscan -p 2222 <IP>` when adding to known_hosts
 - Test with `ssh -p 2222` before configuring Jenkins
 - Remove passphrases from SSH keys used for automation
+- Disable and mask `ssh.socket` before restarting `ssh.service` on Ubuntu
 
 ❌ **Don't:**
 - Forget the `-p 2222` flag in ssh commands
 - Leave passphrases on keys used for Jenkins automation
-- Use `-H` flag with ssh-keyscan if you need plain IP entries (use `-H` only for hashing)
+- Use `-H` flag with ssh-keyscan if you need plain IP entries
 - Disable password auth before testing key-based SSH works
+- Run `systemctl restart ssh` alone after a port change without first disabling `ssh.socket`
 
 ---
 
@@ -360,7 +409,9 @@ chown -R jenkins:jenkins /var/lib/jenkins/.ssh
 
 Before considering the setup complete:
 
-- [ ] Agent VM SSH is listening on port 2222
+- [ ] `ssh.socket` is disabled and masked (`systemctl is-enabled ssh.socket` returns `masked`)
+- [ ] `ssh.service` is enabled and active (`systemctl is-enabled ssh.service` returns `enabled`)
+- [ ] Agent VM SSH is listening on port 2222 (`sudo ss -tlnp | grep 2222`)
 - [ ] `sudo -u jenkins ssh -i /var/lib/jenkins/.ssh/agent_key jenkins@<IP> -p 2222` works without passphrase
 - [ ] `/var/lib/jenkins/.ssh/known_hosts` contains entry for `[<IP>]:2222`
 - [ ] Jenkins credentials have no passphrase set
