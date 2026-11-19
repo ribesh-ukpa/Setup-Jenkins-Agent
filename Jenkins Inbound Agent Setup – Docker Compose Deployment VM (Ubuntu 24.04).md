@@ -91,7 +91,7 @@ All three must run without a `permission denied` error. If the Compose command i
 **4. Download the agent.** The controller serves the matching agent JAR itself, so the versions always agree.
 
 ```bash
-sudo -u jenkins curl -fsSL <JENKINS_URL>jnlpJars/agent.jar -o /opt/jenkins-agent/agent.jar
+sudo -u jenkins curl -fsSL <JENKINS_URL>/jnlpJars/agent.jar -o /opt/jenkins-agent/agent.jar
 ```
 
 If you run this as another user, make sure `/opt/jenkins-agent/agent.jar` ends up readable by `jenkins`.
